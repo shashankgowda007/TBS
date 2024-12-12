@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Email Pattern Analyzer</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
+</head>
+<body class="bg-gray-900 text-white">
+    <div class="container mx-auto px-4 py-8">
+        <header class="bg-blue-800 text-white text-center py-4 mb-6 rounded">
+            <h1 class="text-2xl font-bold">Tree Business Solutions</h1>
+        </header>
+
+        <!-- Alert Modal -->
+        <div id="alertModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center">
+            <div class="bg-white p-6 rounded-lg shadow-xl max-w-md w-full">
+                <h2 id="alertTitle" class="text-xl font-bold mb-4 text-black"></h2>
+                <p id="alertMessage" class="text-gray-700 mb-4"></p>
+                <button id="closeAlertBtn" class="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600">
+                    Close
+                </button>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <!-- Pattern Analysis Section -->
+            <div class="bg-gray-800 p-4 rounded">
+                <h2 class="text-xl font-semibold mb-4">Pattern Analysis</h2>
+                <input type="file" id="patternFile" accept=".csv" class="mb-2 w-full bg-gray-700 text-white p-2 rounded">
+                <div class="flex space-x-2">
+                    <button id="processPatternBtn" class="w-1/2 bg-green-500 text-white p-2 rounded hover:bg-green-600" disabled>
+                        Process Patterns
+                    </button>
+                    <button id="downloadPatternBtn" class="w-1/2 bg-green-500 text-white p-2 rounded hover:bg-green-600" disabled>
+                        Download Results
+                    </button>
+                </div>
+                <div id="patternStatus" class="mt-2 text-center"></div>
+            </div>
+
+            <!-- Email Prediction Section -->
+            <div class="bg-gray-800 p-4 rounded">
+                <h2 class="text-xl font-semibold mb-4">Email Prediction</h2>
+                <input type="file" id="predictionFile" accept=".csv" class="mb-2 w-full bg-gray-700 text-white p-2 rounded">
+                <div class="flex space-x-2">
+                    <button id="generateEmailsBtn" class="w-1/2 bg-blue-500 text-white p-2 rounded hover:bg-blue-600" disabled>
+                        Generate Emails
+                    </button>
+                    <button id="downloadPredictionBtn" class="w-1/2 bg-blue-500 text-white p-2 rounded hover:bg-blue-600" disabled>
+                        Download Results
+                    </button>
+                </div>
+                <div id="predictionStatus" class="mt-2 text-center"></div>
+            </div>
+
+            <!-- Email Predictor Section -->
+            <div class="bg-gray-800 p-4 rounded">
+                <h2 class="text-xl font-semibold mb-4">Email Predictor</h2>
+                <input type="file" id="predictorFile" accept=".csv" class="mb-2 w-full bg-gray-700 text-white p-2 rounded">
+                <div class="flex space-x-2">
+                    <button id="predictEmailsBtn" class="w-1/2 bg-purple-500 text-white p-2 rounded hover:bg-purple-600" disabled>
+                        Predict Emails
+                    </button>
+                    <button id="downloadPredictorBtn" class="w-1/2 bg-purple-500 text-white p-2 rounded hover:bg-purple-600" disabled>
+                        Download Results
+                    </button>
+                </div>
+                <div id="predictorStatus" class="mt-2 text-center"></div>
+            </div>
+        </div>
+
+        <!-- Results Table -->
+        <div class="mt-6 bg-black p-4 rounded relative">
+            <h2 id="resultsHeading" class="text-xl font-semibold mb-4">Results Preview</h2>
+            <div class="overflow-y-auto max-h-96">
+                <table id="resultsTable" class="w-full text-left">
+                    <thead class="sticky top-0 bg-blue-800">
+                        <tr>
+                            <th class="p-2">Client</th>
+                            <th class="p-2">Domain</th>
+                            <th class="p-2">Email Format</th>
+                            <th class="p-2">Email</th>
+                        </tr>
+                    </thead>
+                    <tbody id="resultsBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class EmailPatternAnalyzer {
+            constructor() {
+                this.patternData = null;
+                this.predictionData = null;
+                this.predictorData = null;
+                this.emailPatterns = {};
+
+                this.initializeEventListeners();
+            }
+
+            initializeEventListeners() {
+                // Process Pattern buttons
+                document.getElementById('processPatternBtn').addEventListener('click', () => this.processPatterns());
+                document.getElementById('downloadPatternBtn').addEventListener('click', () => this.downloadResults('pattern'));
+
+                // Generate Emails buttons
+                document.getElementById('generateEmailsBtn').addEventListener('click', () => this.generateEmails());
+                document.getElementById('downloadPredictionBtn').addEventListener('click', () => this.downloadResults('prediction'));
+
+                // Predictor Emails buttons
+                document.getElementById('predictEmailsBtn').addEventListener('click', () => this.predictEmails());
+                document.getElementById('downloadPredictorBtn').addEventListener('click', () => this.downloadResults('predictor'));
+
+                // File inputs
+                document.getElementById('patternFile').addEventListener('change', (e) => this.handleFileUpload(e, 'pattern'));
+                document.getElementById('predictionFile').addEventListener('change', (e) => this.handleFileUpload(e, 'prediction'));
+                document.getElementById('predictorFile').addEventListener('change', (e) => this.handleFileUpload(e, 'predictor'));
+
+                // Alert modal close button
+                document.getElementById('closeAlertBtn').addEventListener('click', this.closeAlert);
+            }
+
+            showAlert(title, message) {
+                const alertModal = document.getElementById('alertModal');
+                const alertTitle = document.getElementById('alertTitle');
+                const alertMessage = document.getElementById('alertMessage');
+
+                alertTitle.textContent = title;
+                alertMessage.textContent = message;
+                alertModal.classList.remove('hidden');
+            }
+
+            closeAlert() {
+                const alertModal = document.getElementById('alertModal');
+                alertModal.classList.add('hidden');
+            }
+
+            validateCSVColumns(data, requiredColumns, type) {
+                if (!data || data.length === 0) {
+                    this.showAlert('Invalid File', 'The CSV file is empty.');
+                    return false;
+                }
+
+                const headers = Object.keys(data[0]);
+                const missingColumns = requiredColumns.filter(col => !headers.includes(col));
+
+                if (missingColumns.length > 0) {
+                    this.showAlert('Invalid CSV Format', 
+                        `The following required columns are missing: ${missingColumns.join(', ')}. 
+                        Required columns for ${type} are: ${requiredColumns.join(', ')}`
+                    );
+                    return false;
+                }
+
+                return true;
+            }
+
+            handleFileUpload(event, type) {
+                const file = event.target.files[0];
+                const status = document.getElementById(`${type}Status`);
+                const processBtn = document.getElementById(`${type === 'pattern' ? 'processPattern' : type === 'prediction' ? 'generateEmails' : 'predictEmails'}Btn`);
+
+                if (file) {
+                    Papa.parse(file, {
+                        header: true,
+                        complete: (results) => {
+                            let isValid = false;
+                            switch(type) {
+                                case 'pattern':
+                                    isValid = this.validateCSVColumns(results.data, ['First Name', 'Last Name', 'Email'], 'Pattern Analysis');
+                                    if (isValid) {
+                                        this.patternData = results.data;
+                                        processBtn.disabled = false;
+                                    }
+                                    break;
+                                case 'prediction':
+                                    isValid = this.validateCSVColumns(results.data, ['First Name', 'Last Name', 'URL'], 'Email Prediction');
+                                    if (isValid) {
+                                        this.predictionData = results.data;
+                                        processBtn.disabled = false;
+                                    }
+                                    break;
+                                case 'predictor':
+                                    isValid = this.validateCSVColumns(results.data, ['First Name', 'Last Name', 'Domain', 'Email Format'], 'Email Predictor');
+                                    if (isValid) {
+                                        this.predictorData = results.data;
+                                        processBtn.disabled = false;
+                                    }
+                                    break;
+                            }
+
+                            if (isValid) {
+                                status.textContent = `${file.name} loaded successfully`;
+                                status.className = 'text-green-500 mt-2 text-center';
+                            }
+                        },
+                        error: (error) => {
+                            console.error(error);
+                            this.showAlert('File Upload Error', `Error loading file: ${error.message}`);
+                            status.textContent = `Error loading file: ${error.message}`;
+                            status.className = 'text-red-500 mt-2 text-center';
+                        }
+                    });
+                }
+            }
+
+            processPatterns() {
+                if (!this.patternData) {
+                    this.showAlert('No File', 'Please upload a CSV file for Pattern Analysis first.');
+                    return;
+                }
+
+                const resultBody = document.getElementById('resultsBody');
+                const resultsHeading = document.getElementById('resultsHeading');
+                resultBody.innerHTML = '';
+                this.emailPatterns = {};
+                resultsHeading.textContent = 'Results Preview: Pattern Analysis';
+
+                try {
+                    this.patternData.forEach(row => {
+                        const email = row['Email'].toLowerCase();
+                        const firstName = row['First Name'].toLowerCase().trim();
+                        const lastName = row['Last Name'].toLowerCase().trim();
+                        const domain = email.split('@')[1];
+                        const username = email.split('@')[0];
+
+                        // let formatType = this.detectEmailPattern(username, firstName, lastName);
+
+
+                        let formatType = this.detectEmailPattern(username, firstName, lastName);
+                        const formatWithDomain = `${formatType}@${domain}`;
+
+
+                        this.emailPatterns[domain] = formatType;
+
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td class="p-2">${row['First Name']} ${row['Last Name']}</td>
+                            <td class="p-2">${domain}</td>
+                            <td class="p-2">${formatType}</td>
+                            <td class="p-2">${email}</td>
+                        `;
+                        resultBody.appendChild(tr);
+                    });
+
+                    document.getElementById('downloadPatternBtn').disabled = false;
+                    document.getElementById('patternStatus').textContent = 'Pattern processing complete';
+                    document.getElementById('patternStatus').className = 'text-green-500 mt-2 text-center';
+                } catch (error) {
+                    console.error(error);
+                    this.showAlert('Processing Error', 'An error occurred while processing patterns.');
+                }
+            }
+
+            generateEmails() {
+                if (!this.predictionData) {
+                    this.showAlert('No File', 'Please upload a CSV file for Email Prediction first.');
+                    return;
+                }
+
+                if (Object.keys(this.emailPatterns).length === 0) {
+                    this.showAlert('No Patterns', 'Please process patterns first before generating emails.');
+                    return;
+                }
+
+                const resultBody = document.getElementById('resultsBody');
+                const resultsHeading = document.getElementById('resultsHeading');
+                resultBody.innerHTML = '';
+                resultsHeading.textContent = 'Results Preview: Email Generation';
+
+                this.predictionData.forEach(row => {
+                    const firstName = row['First Name'];
+                    const lastName = row['Last Name'];
+                    const url = row['URL'];
+                    const domain = this.cleanDomain(url);
+
+                    const pattern = this.emailPatterns[domain] || 'FirstNameFirstLetterLastName';
+                    const email = this.generateEmail(firstName, lastName, domain, pattern);
+
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td class="p-2">${firstName} ${lastName}</td>
+                        <td class="p-2">${domain}</td>
+                        <td class="p-2">${pattern}</td>
+                        <td class="p-2">${email}</td>
+                    `;
+                    resultBody.appendChild(tr);
+                });
+
+                document.getElementById('downloadPredictionBtn').disabled = false;
+                document.getElementById('predictionStatus').textContent = 'Email generation complete';
+                document.getElementById('predictionStatus').className = 'text-green-500 mt-2 text-center';
+            }
+
+            predictEmails() {
+                if (!this.predictorData) {
+                    this.showAlert('No File', 'Please upload a CSV file for Email Predictor first.');
+                    return;
+                }
+
+                const resultBody = document.getElementById('resultsBody');
+                const resultsHeading = document.getElementById('resultsHeading');
+                resultBody.innerHTML = '';
+                resultsHeading.textContent = 'Results Preview: Email Prediction';
+
+                this.predictorData.forEach(row => {
+                    const firstName = row['First Name'];
+                    const lastName = row['Last Name'];
+                    const domain = row['Domain'];
+                    const emailFormat = row['Email Format'];
+
+                    const email = this.generateEmail(firstName, lastName, domain, emailFormat);
+                    
+
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td class="p-2">${firstName} ${lastName}</td>
+                        <td class="p-2">${domain}</td>
+                        <td class="p-2">${emailFormat}</td>
+                        <td class="p-2">${email}</td>
+                    `;
+                    resultBody.appendChild(tr);
+                });
+
+                document.getElementById('downloadPredictorBtn').disabled = false;
+                document.getElementById('predictorStatus').textContent = 'Email prediction complete';
+                document.getElementById('predictorStatus').className = 'text-green-500 mt-2 text-center';
+            }
+
+      
+
+                // Previously added methods (detectEmailPattern starts here)
+
+            detectEmailPattern(username, firstName, lastName) {
+                if (username === `d${firstName}`) return 'LastNameFirstLetterFirstName';
+                if (username === `${firstName}${firstName[0]}`) return 'FirstNameFirstLetterLastName';
+                if (username === `${firstName}${lastName[0]}`) return 'FirstNameFirstLetterLastName';
+                if (username === `${firstName}${lastName}`) return 'FirstNameLastName';
+                if (username === `${firstName[0]}${lastName}`) return 'FirstLetterLastName';
+                if (username === `${firstName}.${lastName}`) return 'FirstName.LastName';
+                if (username === `${firstName}_${lastName}`) return 'FirstName_LastName';
+                if (username === lastName) return 'LastName';
+                if (username === firstName) return 'FirstName';
+
+                return 'FirstNameFirstLetterLastName';
+            }
+
+            generateEmail(firstName, lastName, domain, pattern) {
+                let username = '';
+                firstName = firstName.toLowerCase();
+                lastName = lastName.toLowerCase();
+
+                switch(pattern) {
+                    case 'LastNameFirstLetterFirstName':
+                        username = `d${firstName}`;
+                        break;
+                    case 'FirstNameFirstLetterLastName':
+                        username = `${firstName}${lastName[0]}`;
+                        break;
+                    case 'FirstNameLastName':
+                        username = `${firstName}${lastName}`;
+                        break;
+                    case 'FirstLetterLastName':
+                        username = `${firstName[0]}${lastName}`;
+                        break;
+                    case 'FirstName.LastName':
+                        username = `${firstName}.${lastName}`;
+                        break;
+                    case 'FirstName_LastName':
+                        username = `${firstName}_${lastName}`;
+                        break;
+                    case 'LastName':
+                        username = lastName;
+                        break;
+                    case 'FirstName':
+                        username = firstName;
+                        break;
+                    default:
+                        username = `${firstName}${lastName[0]}`;
+                }
+
+                return `${username}@${domain}`;
+            }
+
+            cleanDomain(url) {
+                return url
+                    .replace('http://', '')
+                    .replace('https://', '')
+                    .replace('www.', '')
+                    .split('/')[0];
+            }
+
+            downloadResults(type) {
+                const table = document.getElementById('resultsTable');
+                const rows = table.querySelectorAll('tbody tr');
+                const csvContent = [];
+                
+                const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent);
+                csvContent.push(headers.join(','));
+
+                rows.forEach(row => {
+                    const rowData = Array.from(row.querySelectorAll('td')).map(td => td.textContent);
+                    csvContent.push(rowData.join(','));
+                });
+
+                const csvString = csvContent.join('\n');
+                const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                
+                const filename = {
+                    'pattern': 'pattern_analysis_results.csv',
+                    'prediction': 'email_predictions.csv',
+                    'predictor': 'email_predictor_results.csv'
+                }[type];
+
+                link.href = URL.createObjectURL(blob);
+                link.download = filename;
+                link.click();
+            }
+        }
+
+        new EmailPatternAnalyzer();
+    </script>
+</body>
+</html>
