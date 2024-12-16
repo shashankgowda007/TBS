@@ -205,94 +205,94 @@
                     });
                 }
             }
-
             processPatterns() {
-                if (!this.patternData) {
-                    this.showAlert('No File', 'Please upload a CSV file for Pattern Analysis first.');
-                    return;
-                }
+    if (!this.patternData) {
+        this.showAlert('No File', 'Please upload a CSV file for Pattern Analysis first.');
+        return;
+    }
 
-                const resultBody = document.getElementById('resultsBody');
-                const resultsHeading = document.getElementById('resultsHeading');
-                resultBody.innerHTML = '';
-                this.emailPatterns = {};
-                resultsHeading.textContent = 'Results Preview: Pattern Analysis';
+    const resultBody = document.getElementById('resultsBody');
+    const resultsHeading = document.getElementById('resultsHeading');
+    resultBody.innerHTML = '';
+    this.emailPatterns = {};
+    resultsHeading.textContent = 'Results Preview: Pattern Analysis';
 
-                try {
-                    this.patternData.forEach(row => {
-                        const email = row['Email'].toLowerCase();
-                        const firstName = row['First Name'].toLowerCase().trim();
-                        const lastName = row['Last Name'].toLowerCase().trim();
-                        const domain = email.split('@')[1];
-                        const username = email.split('@')[0];
+    try {
+        this.patternData.forEach(row => {
+            const email = row['Email'].toLowerCase();
+            const firstName = row['First Name'].toLowerCase().trim();
+            const lastName = row['Last Name'].toLowerCase().trim();
+            const domain = email.split('@')[1];
+            const username = email.split('@')[0];
 
-                        // let formatType = this.detectEmailPattern(username, firstName, lastName);
+            // Detect the pattern
+            const formatType = this.detectEmailPattern(username, firstName, lastName);
+            const formatWithDomain = `${formatType}@${domain}`; // Include domain in format
 
+            this.emailPatterns[domain] = formatType;
 
-                        let formatType = this.detectEmailPattern(username, firstName, lastName);
-                        const formatWithDomain = `${formatType}@${domain}`;
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td class="p-2">${row['First Name']} ${row['Last Name']}</td>
+                <td class="p-2">${domain}</td>
+                <td class="p-2">${formatWithDomain}</td> <!-- Updated format with domain -->
+                <td class="p-2">${email}</td>
+            `;
+            resultBody.appendChild(tr);
+        });
 
+        document.getElementById('downloadPatternBtn').disabled = false;
+        document.getElementById('patternStatus').textContent = 'Pattern processing complete';
+        document.getElementById('patternStatus').className = 'text-green-500 mt-2 text-center';
+    } catch (error) {
+        console.error(error);
+        this.showAlert('Processing Error', 'An error occurred while processing patterns.');
+    }
+}
+generateEmails() {
+    if (!this.predictionData) {
+        this.showAlert('No File', 'Please upload a CSV file for Email Prediction first.');
+        return;
+    }
 
-                        this.emailPatterns[domain] = formatType;
+    const resultBody = document.getElementById('resultsBody');
+    const resultsHeading = document.getElementById('resultsHeading');
+    resultBody.innerHTML = '';
+    resultsHeading.textContent = 'Results Preview: Email Generation';
 
-                        const tr = document.createElement('tr');
-                        tr.innerHTML = `
-                            <td class="p-2">${row['First Name']} ${row['Last Name']}</td>
-                            <td class="p-2">${domain}</td>
-                            <td class="p-2">${formatType}</td>
-                            <td class="p-2">${email}</td>
-                        `;
-                        resultBody.appendChild(tr);
-                    });
+    try {
+        this.predictionData.forEach(row => {
+            const firstName = row['First Name'].toLowerCase().trim();
+            const lastName = row['Last Name'].toLowerCase().trim();
+            const url = row['URL'];
+            const domain = this.cleanDomain(url);
 
-                    document.getElementById('downloadPatternBtn').disabled = false;
-                    document.getElementById('patternStatus').textContent = 'Pattern processing complete';
-                    document.getElementById('patternStatus').className = 'text-green-500 mt-2 text-center';
-                } catch (error) {
-                    console.error(error);
-                    this.showAlert('Processing Error', 'An error occurred while processing patterns.');
-                }
+            // Check if a pattern exists for the domain; fallback to default
+            let pattern = this.emailPatterns[domain];
+            if (!pattern) {
+                pattern = 'FirstNameFirstLetterLastName'; // Default pattern if no pre-processed patterns exist
             }
+            const formatWithDomain = `${pattern}@${domain}`;
+            const email = this.generateEmail(firstName, lastName, domain, pattern);
 
-            generateEmails() {
-                if (!this.predictionData) {
-                    this.showAlert('No File', 'Please upload a CSV file for Email Prediction first.');
-                    return;
-                }
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td class="p-2">${row['First Name']} ${row['Last Name']}</td>
+                <td class="p-2">${domain}</td>
+                <td class="p-2">${formatWithDomain}</td>
+                <td class="p-2">${email}</td>
+            `;
+            resultBody.appendChild(tr);
+        });
 
-                if (Object.keys(this.emailPatterns).length === 0) {
-                    this.showAlert('No Patterns', 'Please process patterns first before generating emails.');
-                    return;
-                }
-
-                const resultBody = document.getElementById('resultsBody');
-                const resultsHeading = document.getElementById('resultsHeading');
-                resultBody.innerHTML = '';
-                resultsHeading.textContent = 'Results Preview: Email Generation';
-
-                this.predictionData.forEach(row => {
-                    const firstName = row['First Name'];
-                    const lastName = row['Last Name'];
-                    const url = row['URL'];
-                    const domain = this.cleanDomain(url);
-
-                    const pattern = this.emailPatterns[domain] || 'FirstNameFirstLetterLastName';
-                    const email = this.generateEmail(firstName, lastName, domain, pattern);
-
-                    const tr = document.createElement('tr');
-                    tr.innerHTML = `
-                        <td class="p-2">${firstName} ${lastName}</td>
-                        <td class="p-2">${domain}</td>
-                        <td class="p-2">${pattern}</td>
-                        <td class="p-2">${email}</td>
-                    `;
-                    resultBody.appendChild(tr);
-                });
-
-                document.getElementById('downloadPredictionBtn').disabled = false;
-                document.getElementById('predictionStatus').textContent = 'Email generation complete';
-                document.getElementById('predictionStatus').className = 'text-green-500 mt-2 text-center';
-            }
+        document.getElementById('downloadPredictionBtn').disabled = false;
+        document.getElementById('predictionStatus').textContent = 'Email generation complete';
+        document.getElementById('predictionStatus').className = 'text-green-500 mt-2 text-center';
+    } catch (error) {
+        console.error(error);
+        this.showAlert('Processing Error', 'An error occurred while generating emails.');
+    }
+}
 
             predictEmails() {
                 if (!this.predictorData) {
@@ -312,7 +312,6 @@
                     const emailFormat = row['Email Format'];
 
                     const email = this.generateEmail(firstName, lastName, domain, emailFormat);
-                    
 
                     const tr = document.createElement('tr');
                     tr.innerHTML = `
